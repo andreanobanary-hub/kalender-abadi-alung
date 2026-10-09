@@ -1,0 +1,6 @@
+{
+  "name": "Kalender Abadi (Perpetual Calendar)",
+  "description": "Aplikasi Kalender Abadi interaktif dari tahun 1 hingga 9999 Masehi dengan kalkulasi tahun kabisat Gregorian yang presisi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
