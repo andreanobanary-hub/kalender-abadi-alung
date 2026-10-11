@@ -3,23 +3,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
+  Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
-  Calendar as CalendarIcon,
+  Clock,
   RotateCcw,
   Sparkles,
+  BookOpen,
+  CheckSquare,
   Download,
   Copy,
   Check,
+  Plus,
+  Trash2,
   Info,
-  Layers,
-  Clock,
-  Compass,
   CalendarDays,
-  Bookmark,
-  Share2
+  Flame,
+  Globe,
+  Settings2
 } from 'lucide-react';
 
 // Nama-nama bulan dalam Bahasa Indonesia
@@ -28,24 +31,33 @@ const MONTH_NAMES = [
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
 ];
 
-// Nama-nama hari (Minggu indeks 0)
-const DAY_NAMES = [
-  { short: 'Min', full: 'Minggu', isSunday: true },
-  { short: 'Sen', full: 'Senin', isSunday: false },
-  { short: 'Sel', full: 'Selasa', isSunday: false },
-  { short: 'Rab', full: 'Rabu', isSunday: false },
-  { short: 'Kam', full: 'Kamis', isSunday: false },
-  { short: 'Jum', full: 'Jumat', isSunday: false },
-  { short: 'Sab', full: 'Sabtu', isSunday: false }
+// Hari dalam Bahasa Indonesia
+const DAYS_SUN_FIRST = [
+  { short: 'Min', full: 'Minggu', isSunday: true, id: 0 },
+  { short: 'Sen', full: 'Senin', isSunday: false, id: 1 },
+  { short: 'Sel', full: 'Selasa', isSunday: false, id: 2 },
+  { short: 'Rab', full: 'Rabu', isSunday: false, id: 3 },
+  { short: 'Kam', full: 'Kamis', isSunday: false, id: 4 },
+  { short: 'Jum', full: 'Jumat', isSunday: false, id: 5 },
+  { short: 'Sab', full: 'Sabtu', isSunday: false, id: 6 },
 ];
 
+const DAYS_MON_FIRST = [
+  { short: 'Sen', full: 'Senin', isSunday: false, id: 1 },
+  { short: 'Sel', full: 'Selasa', isSunday: false, id: 2 },
+  { short: 'Rab', full: 'Rabu', isSunday: false, id: 3 },
+  { short: 'Kam', full: 'Kamis', isSunday: false, id: 4 },
+  { short: 'Jum', full: 'Jumat', isSunday: false, id: 5 },
+  { short: 'Sab', full: 'Sabtu', isSunday: false, id: 6 },
+  { short: 'Min', full: 'Minggu', isSunday: true, id: 0 },
+];
+
+// Pasaran Jawa
 const PASARAN_NAMES = ['Legi', 'Pahing', 'Pon', 'Wage', 'Kliwon'];
 
 /**
- * Logika Penentuan Tahun Kabisat (Gregorian Leap Year):
- * Tahun kabisat jika:
- * 1. Habis dibagi 4 DAN tidak habis dibagi 100, ATAU
- * 2. Habis dibagi 400.
+ * Aturan Tahun Kabisat Gregorian (Leap Year):
+ * Habis dibagi 4 dan bukan abad, atau abad yang habis dibagi 400.
  */
 function isLeapYear(year: number): boolean {
   if (year < 1) return false;
@@ -53,7 +65,7 @@ function isLeapYear(year: number): boolean {
 }
 
 /**
- * Menghitung jumlah hari dalam bulan tertentu (0-indexed: 0 = Januari, 11 = Desember)
+ * Jumlah hari dalam suatu bulan
  */
 function getDaysInMonth(year: number, monthIndex: number): number {
   if (monthIndex === 1) {
@@ -64,12 +76,12 @@ function getDaysInMonth(year: number, monthIndex: number): number {
 }
 
 /**
- * Menghitung hari pertama (0 = Minggu, ..., 6 = Sabtu)
- * Menggunakan Algoritma Tomohiko Sakamoto yang deterministik dan presisi untuk tahun 1 - 9999.
- * Formula ini independen dari batasan implementasi Date JS bawaan (yang memetakan tahun 0-99 ke 1900-1999).
+ * Algoritma Tomohiko Sakamoto: Menghitung hari dalam seminggu
+ * Mengembalikan: 0 = Minggu, 1 = Senin, ..., 6 = Sabtu.
+ * Bekerja presisi dari tahun 1 hingga 9999 Masehi.
  */
 function getDayOfWeek(year: number, monthIndex: number, day: number = 1): number {
-  const m = monthIndex + 1; // 1-12
+  const m = monthIndex + 1;
   const t = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
   let y = year;
   if (m < 3) {
@@ -80,7 +92,7 @@ function getDayOfWeek(year: number, monthIndex: number, day: number = 1): number
 }
 
 /**
- * Menghitung Julian Day Number (JDN) untuk kalkulasi astronomis & Pasaran Jawa
+ * Julian Day Number untuk menghitung Pasaran Jawa
  */
 function getJulianDayNumber(year: number, monthIndex: number, day: number): number {
   const m = monthIndex + 1;
@@ -98,49 +110,74 @@ function getJulianDayNumber(year: number, monthIndex: number, day: number): numb
   );
 }
 
-/**
- * Menghitung Pasaran Jawa (Legi, Pahing, Pon, Wage, Kliwon)
- */
 function getPasaran(year: number, monthIndex: number, day: number): string {
   const jdn = getJulianDayNumber(year, monthIndex, day);
   const index = ((jdn + 1) % 5 + 5) % 5;
   return PASARAN_NAMES[index];
 }
 
-/**
- * Menghitung urutan hari ke berapa dalam tahun tersebut (Day of Year)
- */
-function getDayOfYear(year: number, monthIndex: number, day: number): number {
-  let count = 0;
-  for (let i = 0; i < monthIndex; i++) {
-    count += getDaysInMonth(year, i);
-  }
-  return count + day;
+interface AgendaItem {
+  id: string;
+  dateKey: string; // YYYY-MM-DD
+  title: string;
+  time?: string;
+  completed?: boolean;
 }
 
 export default function App() {
-  const today = useMemo(() => {
-    const d = new Date();
-    return {
-      year: d.getFullYear(),
-      month: d.getMonth(),
-      day: d.getDate()
-    };
+  // Real-time saat ini
+  const [realTime, setRealTime] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRealTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
   }, []);
 
-  const [currentYear, setCurrentYear] = useState<number>(today.year);
-  const [currentMonth, setCurrentMonth] = useState<number>(today.month);
-  const [yearInput, setYearInput] = useState<string>(String(today.year));
-  const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
-  const [selectedDate, setSelectedDate] = useState<{ year: number; month: number; day: number } | null>(null);
+  const todayYear = realTime.getFullYear();
+  const todayMonth = realTime.getMonth();
+  const todayDate = realTime.getDate();
+
+  // State Kalender yang sedang dilihat
+  const [currentYear, setCurrentYear] = useState<number>(todayYear);
+  const [currentMonth, setCurrentMonth] = useState<number>(todayMonth);
+  const [startOnMonday, setStartOnMonday] = useState<boolean>(true); // default Senin-Minggu sesuai permintaan
+  const [selectedDate, setSelectedDate] = useState<{ year: number; month: number; day: number } | null>({
+    year: todayYear,
+    month: todayMonth,
+    day: todayDate
+  });
+
+  // State Tab Navigasi Aktif
+  const [activeTab, setActiveTab] = useState<'calendar' | 'agenda' | 'history'>('calendar');
+
+  // Agenda/Notes (tersimpan di localStorage)
+  const [agendas, setAgendas] = useState<AgendaItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('kalender_abadi_agendas');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return [
+      { id: '1', dateKey: `${todayYear}-${String(todayMonth + 1).padStart(2, '0')}-${String(todayDate).padStart(2, '0')}`, title: 'Fokus kerja harian & cek kalender abadi', time: '09:00', completed: false }
+    ];
+  });
+
+  const [newAgendaTitle, setNewAgendaTitle] = useState('');
+  const [newAgendaTime, setNewAgendaTime] = useState('10:00');
   const [copiedCode, setCopiedCode] = useState(false);
 
-  // Sync year input ketika currentYear berubah
   useEffect(() => {
-    setYearInput(String(currentYear));
-  }, [currentYear]);
+    try {
+      localStorage.setItem('kalender_abadi_agendas', JSON.stringify(agendas));
+    } catch {
+      // ignore
+    }
+  }, [agendas]);
 
-  // Handle pergantian bulan
+  // Handle tombol bulan
   const handlePrevMonth = () => {
     if (currentMonth === 0) {
       if (currentYear > 1) {
@@ -163,433 +200,670 @@ export default function App() {
     }
   };
 
-  // Navigasi cepat tahun
-  const changeYearBy = (delta: number) => {
-    const newY = Math.min(9999, Math.max(1, currentYear + delta));
-    setCurrentYear(newY);
-  };
-
-  const handleYearInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setYearInput(val);
-    const num = parseInt(val, 10);
-    if (!isNaN(num) && num >= 1 && num <= 9999) {
-      setCurrentYear(num);
-    }
-  };
-
-  const handleYearInputBlur = () => {
-    const num = parseInt(yearInput, 10);
-    if (isNaN(num) || num < 1) {
-      setCurrentYear(1);
-      setYearInput('1');
-    } else if (num > 9999) {
-      setCurrentYear(9999);
-      setYearInput('9999');
-    }
-  };
-
-  // Loncat ke hari ini
   const jumpToToday = () => {
-    setCurrentYear(today.year);
-    setCurrentMonth(today.month);
-    setSelectedDate({ year: today.year, month: today.month, day: today.day });
+    setCurrentYear(todayYear);
+    setCurrentMonth(todayMonth);
+    setSelectedDate({ year: todayYear, month: todayMonth, day: todayDate });
   };
 
-  // Preset sejarah terkenal
-  const presets = [
-    { label: 'Hari Ini', y: today.year, m: today.month, d: today.day },
-    { label: '17 Agu 1945 (Proklamasi)', y: 1945, m: 7, d: 17 },
-    { label: '1 Jan 2000 (Milenium)', y: 2000, m: 0, d: 1 },
-    { label: '1 Jan 0001 (Awal Masehi)', y: 1, m: 0, d: 1 },
-    { label: '31 Des 9999 (Maksimal)', y: 9999, m: 11, d: 31 },
-  ];
+  const leap = isLeapYear(currentYear);
 
-  // Hitung grid kalender untuk bulan aktif
+  // Perhitungan jam analog
+  const secondsAngle = realTime.getSeconds() * 6;
+  const minutesAngle = realTime.getMinutes() * 6 + realTime.getSeconds() * 0.1;
+  const hoursAngle = ((realTime.getHours() % 12) + realTime.getMinutes() / 60) * 30;
+
+  // Grid Hari
+  const dayHeaders = startOnMonday ? DAYS_MON_FIRST : DAYS_SUN_FIRST;
+
+  // Generate cells kalender
   const calendarCells = useMemo(() => {
-    const daysCount = getDaysInMonth(currentYear, currentMonth);
-    const startDayOfWeek = getDayOfWeek(currentYear, currentMonth, 1); // 0 (Minggu) s.d. 6 (Sabtu)
+    const daysInCurrentMonth = getDaysInMonth(currentYear, currentMonth);
+    const rawStartDow = getDayOfWeek(currentYear, currentMonth, 1); // 0=Min, 1=Sen, ... 6=Sab
+    
+    // Sesuaikan offset hari pertama berdasarkan Senin atau Minggu pertama
+    let offset = rawStartDow;
+    if (startOnMonday) {
+      offset = (rawStartDow + 6) % 7; // Sen=0, Sel=1, ..., Min=6
+    }
 
-    // Hari dari bulan sebelumnya untuk padding
-    const prevMonthIndex = currentMonth === 0 ? 11 : currentMonth - 1;
+    const prevMonthIdx = currentMonth === 0 ? 11 : currentMonth - 1;
     const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-    const prevDaysCount = prevYear >= 1 ? getDaysInMonth(prevYear, prevMonthIndex) : 31;
+    const prevMonthDays = prevYear >= 1 ? getDaysInMonth(prevYear, prevMonthIdx) : 31;
 
     const cells = [];
 
-    // Hari bulan sebelumnya
-    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+    // Hari bulan lalu (padding)
+    for (let i = offset - 1; i >= 0; i--) {
       cells.push({
-        day: prevDaysCount - i,
-        month: prevMonthIndex,
+        day: prevMonthDays - i,
+        month: prevMonthIdx,
         year: prevYear,
         isCurrentMonth: false,
-        dayOfWeek: (startDayOfWeek - 1 - i) % 7
+        dow: (rawStartDow - 1 - i + 7) % 7
       });
     }
 
-    // Hari bulan sekarang
-    for (let d = 1; d <= daysCount; d++) {
-      const dow = (startDayOfWeek + (d - 1)) % 7;
+    // Hari bulan aktif
+    for (let d = 1; d <= daysInCurrentMonth; d++) {
+      const dow = (rawStartDow + (d - 1)) % 7;
       cells.push({
         day: d,
         month: currentMonth,
         year: currentYear,
         isCurrentMonth: true,
-        dayOfWeek: dow
+        dow
       });
     }
 
-    // Hari bulan berikutnya untuk melengkapi kelipatan 7 (grid penuh)
+    // Hari bulan depan (pelengkap grid 7 kolom)
     const remaining = (7 - (cells.length % 7)) % 7;
-    const nextMonthIndex = currentMonth === 11 ? 0 : currentMonth + 1;
+    const nextMonthIdx = currentMonth === 11 ? 0 : currentMonth + 1;
     const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
     for (let d = 1; d <= remaining; d++) {
-      const dow = (startDayOfWeek + daysCount + d - 1) % 7;
+      const dow = (rawStartDow + daysInCurrentMonth + d - 1) % 7;
       cells.push({
         day: d,
-        month: nextMonthIndex,
+        month: nextMonthIdx,
         year: nextYear,
         isCurrentMonth: false,
-        dayOfWeek: dow
+        dow
       });
     }
 
     return cells;
-  }, [currentYear, currentMonth]);
+  }, [currentYear, currentMonth, startOnMonday]);
 
-  const leap = isLeapYear(currentYear);
+  // Format tanggal selected
+  const selectedDateKey = useMemo(() => {
+    if (!selectedDate) return '';
+    return `${selectedDate.year}-${String(selectedDate.month + 1).padStart(2, '0')}-${String(selectedDate.day).padStart(2, '0')}`;
+  }, [selectedDate]);
 
-  // Kode HTML Standalone siap unduh
-  const standaloneHtmlCode = useMemo(() => {
+  const selectedAgendas = useMemo(() => {
+    return agendas.filter(a => a.dateKey === selectedDateKey);
+  }, [agendas, selectedDateKey]);
+
+  // Tambah agenda
+  const handleAddAgenda = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAgendaTitle.trim() || !selectedDateKey) return;
+    const item: AgendaItem = {
+      id: Date.now().toString(),
+      dateKey: selectedDateKey,
+      title: newAgendaTitle.trim(),
+      time: newAgendaTime,
+      completed: false
+    };
+    setAgendas(prev => [item, ...prev]);
+    setNewAgendaTitle('');
+  };
+
+  const toggleAgenda = (id: string) => {
+    setAgendas(prev => prev.map(a => a.id === id ? { ...a, completed: !a.completed } : a));
+  };
+
+  const deleteAgenda = (id: string) => {
+    setAgendas(prev => prev.filter(a => a.id !== id));
+  };
+
+  // Preset sejarah
+  const historicalEvents = [
+    { year: 1945, month: 7, day: 17, title: 'Proklamasi Kemerdekaan Indonesia', desc: 'Jumat Legi, 17 Agustus 1945 — Pembacaan teks proklamasi oleh Ir. Soekarno.' },
+    { year: 1928, month: 9, day: 28, title: 'Kongres Pemuda II (Sumpah Pemuda)', desc: 'Minggu, 28 Oktober 1928 — Lahirnya ikrar persatuan tanah air, bangsa, dan bahasa.' },
+    { year: 2000, month: 0, day: 1, title: 'Pergantian Milenium Baru (Y2K)', desc: 'Sabtu, 1 Januari 2000 — Tahun kabisat abad ke-21 yang habis dibagi 400.' },
+    { year: 1908, month: 4, day: 20, title: 'Hari Kebangkitan Nasional (Budi Utomo)', desc: 'Rabu, 20 Mei 1908 — Awal pergerakan nasional modern di Nusantara.' },
+    { year: 1, month: 0, day: 1, title: 'Titik Awal Tarikh Masehi (1 M)', desc: 'Senin, 1 Januari 0001 — Titik awal perhitungan kalender Masehi Gregorian proleptik.' }
+  ];
+
+  // Kode Standalone HTML tunggal untuk unduhan / copy
+  const standaloneSingleFileHtml = useMemo(() => {
     return `<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kalender Abadi (1 - 9999 Masehi)</title>
-  <!-- Tailwind CSS CDN -->
+  <title>Kalender Abadi - Digital Dashboard</title>
+  <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+    .glass-card { background: rgba(255, 255, 255, 0.12); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.2); }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col items-center p-4 md:p-8">
+<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-3 md:p-6 lg:p-8">
 
-  <div class="w-full max-w-4xl bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-    <!-- Header -->
-    <header class="bg-gradient-to-r from-indigo-700 via-indigo-600 to-blue-600 text-white p-6 md:p-8">
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/20 text-white backdrop-blur-sm mb-2">
-            ✨ Presisi Gregorian 1 - 9999 M
+  <!-- Dashboard Container Utama (Responsive Split Layout) -->
+  <div class="w-full max-w-7xl bg-slate-950/80 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col lg:flex-row">
+    
+    <!-- SISI KIRI: PANEL INFORMASI "HARI INI" & JAM INTERAKTIF (1/3 Lebar Desktop) -->
+    <aside class="lg:w-96 xl:w-[420px] bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-950 p-6 md:p-8 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-indigo-900/40 relative overflow-hidden">
+      
+      <!-- Dekorasi Cahaya Latar Belakang -->
+      <div class="absolute -top-24 -left-24 w-72 h-72 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute bottom-0 right-0 w-60 h-60 bg-blue-500/15 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="relative z-10 space-y-6">
+        <!-- Brand Title -->
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-indigo-500/30 border border-indigo-400/40 flex items-center justify-center text-indigo-300 font-extrabold text-lg shadow-lg shadow-indigo-500/20">
+              KA
+            </div>
+            <div>
+              <h1 class="text-xl font-extrabold tracking-tight text-white leading-tight">Kalender Abadi</h1>
+              <p class="text-xs text-indigo-200">Digital Smart Dashboard</p>
+            </div>
+          </div>
+          <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
+            1-9999 M
           </span>
-          <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight">Kalender Abadi</h1>
-          <p class="text-indigo-100 text-sm mt-1">Kalkulator penanggalan abadi dengan aturan kabisat presisi</p>
-        </div>
-        <button id="btn-today" class="self-start md:self-auto px-4 py-2 bg-white text-indigo-700 hover:bg-indigo-50 font-semibold rounded-xl text-sm shadow-md transition active:scale-95 flex items-center gap-2">
-          📅 Hari Ini
-        </button>
-      </div>
-    </header>
-
-    <!-- Kontrol & Navigasi -->
-    <div class="p-6 border-b border-slate-100 bg-slate-50/50">
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-        <!-- Pilihan Bulan -->
-        <div class="md:col-span-5 flex items-center gap-2">
-          <button id="btn-prev-month" class="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 transition" title="Bulan Sebelumnya">
-            &#9664;
-          </button>
-          <select id="select-month" class="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-slate-800 font-semibold text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-            <option value="0">Januari</option>
-            <option value="1">Februari</option>
-            <option value="2">Maret</option>
-            <option value="3">April</option>
-            <option value="4">Mei</option>
-            <option value="5">Juni</option>
-            <option value="6">Juli</option>
-            <option value="7">Agustus</option>
-            <option value="8">September</option>
-            <option value="9">Oktober</option>
-            <option value="10">November</option>
-            <option value="11">Desember</option>
-          </select>
-          <button id="btn-next-month" class="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 transition" title="Bulan Berikutnya">
-            &#9654;
-          </button>
         </div>
 
-        <!-- Pilihan Tahun -->
-        <div class="md:col-span-4 flex items-center gap-2">
-          <span class="text-sm font-semibold text-slate-500">Tahun:</span>
-          <input id="input-year" type="number" min="1" max="9999" class="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-slate-800 font-bold text-center text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-        </div>
+        <!-- Kartu Besar Dinamis "Hari Ini" dengan Jam Analog & Digital -->
+        <div class="glass-card rounded-2xl p-6 text-white shadow-xl shadow-indigo-950/40 relative overflow-hidden">
+          <div class="flex items-center justify-between mb-4">
+            <span class="text-xs font-semibold uppercase tracking-wider text-indigo-200 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Waktu Nyata
+            </span>
+            <div id="live-digital-clock" class="text-xs font-mono font-bold bg-black/30 px-2.5 py-1 rounded-lg border border-white/10 text-indigo-200">
+              --:--:--
+            </div>
+          </div>
 
-        <!-- Status Kabisat -->
-        <div class="md:col-span-3">
-          <div id="leap-badge" class="px-3 py-2 rounded-xl text-xs font-semibold text-center border">
-            <!-- Diisi lewat JS -->
+          <!-- Jam Analog Interaktif SVG -->
+          <div class="flex justify-center my-3">
+            <div class="relative w-28 h-28 rounded-full border-2 border-indigo-400/40 bg-indigo-950/60 shadow-inner flex items-center justify-center">
+              <!-- Titik Angka Jam -->
+              <span class="absolute top-1 text-[9px] font-bold text-indigo-300">12</span>
+              <span class="absolute right-1 text-[9px] font-bold text-indigo-300">3</span>
+              <span class="absolute bottom-1 text-[9px] font-bold text-indigo-300">6</span>
+              <span class="absolute left-1 text-[9px] font-bold text-indigo-300">9</span>
+              
+              <!-- Jarum Jam -->
+              <div id="clock-hour" class="absolute w-1 h-7 bg-indigo-200 rounded origin-bottom bottom-14 shadow transition-transform"></div>
+              <!-- Jarum Menit -->
+              <div id="clock-minute" class="absolute w-0.5 h-10 bg-indigo-100 rounded origin-bottom bottom-14 shadow transition-transform"></div>
+              <!-- Jarum Detik -->
+              <div id="clock-second" class="absolute w-0.5 h-11 bg-rose-400 rounded origin-bottom bottom-14 shadow transition-transform"></div>
+              <!-- Titik Pusat -->
+              <div class="w-2.5 h-2.5 bg-rose-500 rounded-full z-10 border-2 border-white"></div>
+            </div>
+          </div>
+
+          <!-- Tanggal Hari Ini Dinamis -->
+          <div class="text-center mt-4 pt-3 border-t border-white/10">
+            <div id="live-day-name" class="text-sm font-semibold text-indigo-200">--</div>
+            <div id="live-full-date" class="text-xl md:text-2xl font-extrabold text-white tracking-tight mt-0.5">--</div>
+            <div id="live-pasaran-text" class="text-xs text-indigo-300/80 mt-1">--</div>
           </div>
         </div>
+
+        <!-- Fitur "Lompat ke Tahun/Bulan" Cepat Menyatu dalam Sisi Kiri -->
+        <div class="bg-indigo-950/40 rounded-2xl p-5 border border-indigo-800/40 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-indigo-300">Lompat Tanggal</h3>
+            <button id="btn-jump-today" class="text-xs text-indigo-300 hover:text-white font-medium transition cursor-pointer flex items-center gap-1">
+              ↺ Hari Ini
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[10px] text-indigo-300 font-semibold block mb-1">Bulan:</label>
+              <select id="left-select-month" class="w-full bg-slate-900 border border-indigo-700/60 rounded-xl px-2.5 py-2 text-xs font-semibold text-white focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+                <option value="0">Januari</option>
+                <option value="1">Februari</option>
+                <option value="2">Maret</option>
+                <option value="3">April</option>
+                <option value="4">Mei</option>
+                <option value="5">Juni</option>
+                <option value="6">Juli</option>
+                <option value="7">Agustus</option>
+                <option value="8">September</option>
+                <option value="9">Oktober</option>
+                <option value="10">November</option>
+                <option value="11">Desember</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-[10px] text-indigo-300 font-semibold block mb-1">Tahun (1-9999):</label>
+              <input id="left-input-year" type="number" min="1" max="9999" class="w-full bg-slate-900 border border-indigo-700/60 rounded-xl px-2.5 py-2 text-xs font-bold text-center text-white focus:ring-2 focus:ring-indigo-400 focus:outline-none" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Menu Statis Navigasi Sidebar Kiri -->
+        <div class="space-y-1.5 text-xs">
+          <div class="text-[11px] font-bold text-indigo-300 uppercase tracking-wider mb-2">Navigasi Utama</div>
+          <button id="menu-kalender" class="w-full text-left px-3.5 py-2 rounded-xl bg-indigo-600/30 text-white font-semibold border border-indigo-500/40 flex items-center gap-2.5 transition">
+            📅 Tampilan Kalender
+          </button>
+          <button id="menu-agenda" class="w-full text-left px-3.5 py-2 rounded-xl text-indigo-200 hover:bg-white/5 hover:text-white font-medium flex items-center gap-2.5 transition">
+            📝 Catatan Agenda (<span id="agenda-count">0</span>)
+          </button>
+          <button id="menu-sejarah" class="w-full text-left px-3.5 py-2 rounded-xl text-indigo-200 hover:bg-white/5 hover:text-white font-medium flex items-center gap-2.5 transition">
+            🏛️ Sejarah Hari Ini
+          </button>
+        </div>
       </div>
 
-      <!-- Presets Cepat -->
-      <div class="mt-4 flex flex-wrap gap-2 items-center text-xs text-slate-500">
-        <span class="font-medium">Lompat Cepat:</span>
-        <button class="preset-btn px-2.5 py-1 bg-white border border-slate-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition" data-y="1945" data-m="7">17 Agu 1945</button>
-        <button class="preset-btn px-2.5 py-1 bg-white border border-slate-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition" data-y="2000" data-m="0">1 Jan 2000</button>
-        <button class="preset-btn px-2.5 py-1 bg-white border border-slate-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition" data-y="1" data-m="0">Tahun 1 M</button>
-        <button class="preset-btn px-2.5 py-1 bg-white border border-slate-200 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition" data-y="9999" data-m="11">Tahun 9999 M</button>
+      <!-- Badge Kabisat Kiri Bawah -->
+      <div class="mt-6 pt-4 border-t border-indigo-900/50">
+        <div id="left-leap-status" class="text-xs text-indigo-200 text-center font-medium bg-black/20 py-2 px-3 rounded-xl border border-white/5">
+          <!-- Diisi via JS -->
+        </div>
       </div>
-    </div>
+    </aside>
 
-    <!-- Tampilan Nama Bulan & Tahun yang Aktif -->
-    <div class="py-4 px-6 bg-white flex items-center justify-between border-b border-slate-100">
-      <h2 id="calendar-title" class="text-2xl font-bold text-slate-800"></h2>
-      <div id="calendar-subtitle" class="text-sm font-medium text-slate-500"></div>
-    </div>
+    <!-- SISI KANAN: AREA KALENDER UTAMA INTERAKTIF (2/3 Lebar Desktop) -->
+    <main class="flex-1 p-6 md:p-8 flex flex-col justify-between bg-slate-900/70">
+      
+      <div>
+        <!-- Top Navigation Bar Kalender Kanan -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+          <div>
+            <div class="flex items-center gap-3">
+              <h2 id="main-calendar-title" class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight"></h2>
+              <span id="badge-total-days" class="text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-semibold"></span>
+            </div>
+            <p id="main-calendar-desc" class="text-xs text-slate-400 mt-1"></p>
+          </div>
 
-    <!-- Grid Kalender -->
-    <div class="p-4 md:p-6">
-      <!-- Header Nama Hari (7 Kolom, Minggu Merah) -->
-      <div class="grid grid-cols-7 gap-2 mb-2 text-center text-xs md:text-sm font-bold">
-        <div class="py-2 text-rose-600 bg-rose-50/70 rounded-lg">Minggu</div>
-        <div class="py-2 text-slate-700 bg-slate-100/70 rounded-lg">Senin</div>
-        <div class="py-2 text-slate-700 bg-slate-100/70 rounded-lg">Selasa</div>
-        <div class="py-2 text-slate-700 bg-slate-100/70 rounded-lg">Rabu</div>
-        <div class="py-2 text-slate-700 bg-slate-100/70 rounded-lg">Kamis</div>
-        <div class="py-2 text-slate-700 bg-slate-100/70 rounded-lg">Jumat</div>
-        <div class="py-2 text-slate-700 bg-slate-100/70 rounded-lg">Sabtu</div>
+          <!-- Tombol Navigasi (< > Today) -->
+          <div class="flex items-center gap-2">
+            <button id="btn-prev" class="p-2.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 transition cursor-pointer" title="Bulan Lalu">
+              &#9664;
+            </button>
+            <button id="btn-today-main" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-600/30 transition cursor-pointer">
+              Today
+            </button>
+            <button id="btn-next" class="p-2.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 transition cursor-pointer" title="Bulan Depan">
+              &#9654;
+            </button>
+          </div>
+        </div>
+
+        <!-- 7 Kolom Header Hari (Senin-Minggu, Minggu Merah Khusus) -->
+        <div class="grid grid-cols-7 gap-2 my-4 text-center text-xs sm:text-sm font-bold">
+          <div class="py-2.5 rounded-xl text-slate-300 bg-slate-800/80 border border-slate-700/60">Senin</div>
+          <div class="py-2.5 rounded-xl text-slate-300 bg-slate-800/80 border border-slate-700/60">Selasa</div>
+          <div class="py-2.5 rounded-xl text-slate-300 bg-slate-800/80 border border-slate-700/60">Rabu</div>
+          <div class="py-2.5 rounded-xl text-slate-300 bg-slate-800/80 border border-slate-700/60">Kamis</div>
+          <div class="py-2.5 rounded-xl text-slate-300 bg-slate-800/80 border border-slate-700/60">Jumat</div>
+          <div class="py-2.5 rounded-xl text-slate-300 bg-slate-800/80 border border-slate-700/60">Sabtu</div>
+          <div class="py-2.5 rounded-xl text-rose-400 bg-rose-500/15 border border-rose-500/30 font-extrabold">Minggu</div>
+        </div>
+
+        <!-- Grid Tanggal Interaktif 7 Kolom -->
+        <div id="main-grid" class="grid grid-cols-7 gap-2 sm:gap-2.5 min-h-[360px]">
+          <!-- Diisi via JS -->
+        </div>
       </div>
 
-      <!-- Kotak Tanggal (Di-render lewat JS) -->
-      <div id="calendar-grid" class="grid grid-cols-7 gap-1.5 md:gap-2"></div>
-    </div>
+      <!-- Legenda & Keterangan Tahun Kabisat vs Tahun Biasa -->
+      <div class="mt-8 pt-4 border-t border-slate-800 text-xs text-slate-400 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-4">
+          <div class="flex items-center gap-1.5">
+            <span class="w-3 h-3 rounded-md bg-indigo-600"></span>
+            <span>Hari Ini</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-3 h-3 rounded-md bg-rose-500/30 border border-rose-500/50"></span>
+            <span class="text-rose-400 font-semibold">Minggu (Libur)</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            <span>Ada Catatan</span>
+          </div>
+        </div>
 
-    <!-- Footer Keterangan Algoritma -->
-    <footer class="p-6 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 space-y-2">
-      <p><strong>Aturan Tahun Kabisat Gregorian:</strong> Sebuah tahun adalah kabisat jika habis dibagi 4, kecuali tahun pergantian abad (habis dibagi 100) yang harus habis dibagi 400.</p>
-      <p><strong>Algoritma Sakamoto:</strong> Perhitungan hari pertama bulan dihitung secara presisi murni matematis dari tahun 1 hingga 9999 tanpa bergantung batasan Date Javascript tahun 1900-an.</p>
-    </footer>
+        <div id="leap-legend-box" class="text-[11px] text-slate-400">
+          <!-- Keterangan detail aturan kabisat -->
+        </div>
+      </div>
+
+    </main>
   </div>
 
+  <!-- Modal Interaktif Catatan Tanggal -->
+  <div id="modal-date" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-md w-full shadow-2xl relative text-left">
+      <button id="modal-close-btn" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg p-1.5">✕</button>
+      
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-500 flex items-center justify-center text-indigo-400 text-xl font-bold">📅</div>
+        <div>
+          <h3 id="modal-date-title" class="text-lg font-bold text-white">Detail Tanggal</h3>
+          <p id="modal-date-sub" class="text-xs text-indigo-300 font-medium"></p>
+        </div>
+      </div>
+
+      <!-- Tambah Catatan -->
+      <form id="form-add-agenda" class="mt-4 pt-3 border-t border-slate-800 space-y-2">
+        <label class="text-xs font-semibold text-slate-300 block">Tambah Catatan Agenda:</label>
+        <div class="flex gap-2">
+          <input id="input-agenda-title" type="text" placeholder="Tulis rencana / catatan..." required class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <button type="submit" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition">Simpan</button>
+        </div>
+      </form>
+
+      <!-- Daftar Catatan Pada Tanggal Ini -->
+      <div class="mt-4">
+        <h4 class="text-xs font-bold text-slate-400 mb-2">Catatan Tersimpan:</h4>
+        <div id="modal-agenda-list" class="space-y-1.5 max-h-40 overflow-y-auto text-xs">
+          <!-- Diisi via JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIKA LENGKAP -->
   <script>
-    // Konstanta Bulan
-    const MONTH_NAMES = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-    ];
+    const MONTH_NAMES = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    const DAY_NAMES = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const PASARAN_NAMES = ['Legi', 'Pahing', 'Pon', 'Wage', 'Kliwon'];
 
-    // Status Tanggal Hari Ini (Real-Time)
-    const now = new Date();
-    const realToday = {
-      year: now.getFullYear(),
-      month: now.getMonth(),
-      day: now.getDate()
-    };
+    const realNow = new Date();
+    const REAL_TODAY = { year: realNow.getFullYear(), month: realNow.getMonth(), day: realNow.getDate() };
 
-    // State Aplikasi
-    let currentYear = realToday.year;
-    let currentMonth = realToday.month;
+    let currentYear = REAL_TODAY.year;
+    let currentMonth = REAL_TODAY.month;
+    let selectedDateForModal = null;
 
-    // ELEMEN DOM
-    const selectMonth = document.getElementById('select-month');
-    const inputYear = document.getElementById('input-year');
-    const btnPrevMonth = document.getElementById('btn-prev-month');
-    const btnNextMonth = document.getElementById('btn-next-month');
-    const btnToday = document.getElementById('btn-today');
-    const leapBadge = document.getElementById('leap-badge');
-    const calendarTitle = document.getElementById('calendar-title');
-    const calendarSubtitle = document.getElementById('calendar-subtitle');
-    const calendarGrid = document.getElementById('calendar-grid');
+    let savedAgendas = JSON.parse(localStorage.getItem('ka_standalone_agendas') || '[]');
 
-    /**
-     * 1. LOGIKA KALKULASI TAHUN KABISAT GREGORIAN
-     * Tahun kabisat jika habis dibagi 4 dan bukan abad, atau abad yang habis dibagi 400.
-     */
+    function saveAgendas() {
+      localStorage.setItem('ka_standalone_agendas', JSON.stringify(savedAgendas));
+      updateAgendaCountBadge();
+    }
+
+    function updateAgendaCountBadge() {
+      const el = document.getElementById('agenda-count');
+      if (el) el.textContent = savedAgendas.length;
+    }
+
+    // 1. Logika Kabisat Gregorian
     function isLeapYear(y) {
       if (y < 1) return false;
       return (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
     }
 
-    /**
-     * 2. LOGIKA JUMLAH HARI DALAM BULAN
-     */
+    // 2. Jumlah Hari dalam Bulan
     function getDaysInMonth(y, m) {
       if (m === 1) return isLeapYear(y) ? 29 : 28;
       const days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
       return days[m];
     }
 
-    /**
-     * 3. LOGIKA ALGORITMA TOMOHIKO SAKAMOTO
-     * Menghitung hari pertama dalam seminggu (0 = Minggu, 1 = Senin, ..., 6 = Sabtu).
-     * Bekerja akurat dari tahun 1 hingga 9999 Masehi.
-     */
+    // 3. Algoritma Tomohiko Sakamoto (0 = Minggu, ..., 6 = Sabtu)
     function getDayOfWeek(year, monthIndex, day = 1) {
-      const m = monthIndex + 1; // Konversi ke bulan 1-12
+      const m = monthIndex + 1;
       const t = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
       let y = year;
-      if (m < 3) {
-        y -= 1;
-      }
+      if (m < 3) y -= 1;
       const dow = (y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) + t[m - 1] + day) % 7;
       return (dow + 7) % 7;
     }
 
-    // FUNGSI RENDER UTAMA
-    function renderCalendar() {
-      // Validasi batas tahun
+    function getJulianDayNumber(year, monthIndex, day) {
+      const m = monthIndex + 1;
+      const a = Math.floor((14 - m) / 12);
+      const y = year + 4800 - a;
+      const ma = m + 12 * a - 3;
+      return day + Math.floor((153 * ma + 2) / 5) + 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+    }
+
+    function getPasaran(year, monthIndex, day) {
+      const jdn = getJulianDayNumber(year, monthIndex, day);
+      return PASARAN_NAMES[((jdn + 1) % 5 + 5) % 5];
+    }
+
+    // Jam Real-time (Digital + Analog)
+    function updateClock() {
+      const now = new Date();
+      const h = now.getHours();
+      const m = now.getMinutes();
+      const s = now.getSeconds();
+
+      document.getElementById('live-digital-clock').textContent = 
+        \`\${String(h).padStart(2, '0')}:\${String(m).padStart(2, '0')}:\${String(s).padStart(2, '0')}\`;
+
+      document.getElementById('clock-hour').style.transform = \`rotate(\${((h % 12) + m / 60) * 30}deg)\`;
+      document.getElementById('clock-minute').style.transform = \`rotate(\${m * 6 + s * 0.1}deg)\`;
+      document.getElementById('clock-second').style.transform = \`rotate(\${s * 6}deg)\`;
+
+      document.getElementById('live-day-name').textContent = DAY_NAMES[now.getDay()];
+      document.getElementById('live-full-date').textContent = \`\${now.getDate()} \${MONTH_NAMES[now.getMonth()]} \${now.getFullYear()}\`;
+      document.getElementById('live-pasaran-text').textContent = \`Pasaran: \${getPasaran(now.getFullYear(), now.getMonth(), now.getDate())}\`;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+    updateAgendaCountBadge();
+
+    // Render Kalender Utama
+    function renderMainCalendar() {
       if (currentYear < 1) currentYear = 1;
       if (currentYear > 9999) currentYear = 9999;
 
-      // Update Form Kontrol
-      selectMonth.value = currentMonth;
-      inputYear.value = currentYear;
+      // Sinkronisasi kontrol sisi kiri
+      document.getElementById('left-select-month').value = currentMonth;
+      document.getElementById('left-input-year').value = currentYear;
 
-      // Update Judul
-      calendarTitle.textContent = \`\${MONTH_NAMES[currentMonth]} \${currentYear}\`;
-      const daysInThisMonth = getDaysInMonth(currentYear, currentMonth);
-      calendarSubtitle.textContent = \`\${daysInThisMonth} Hari\`;
-
-      // Update Status Kabisat
+      const daysInM = getDaysInMonth(currentYear, currentMonth);
       const leap = isLeapYear(currentYear);
-      if (leap) {
-        leapBadge.className = "px-3 py-2 rounded-xl text-xs font-semibold text-center border bg-emerald-50 text-emerald-700 border-emerald-200";
-        leapBadge.innerHTML = "✨ <strong>Tahun Kabisat</strong> (366 hari)";
-      } else {
-        leapBadge.className = "px-3 py-2 rounded-xl text-xs font-semibold text-center border bg-slate-100 text-slate-700 border-slate-200";
-        leapBadge.innerHTML = "🗓️ <strong>Tahun Biasa</strong> (365 hari)";
+
+      // Judul Kanan
+      document.getElementById('main-calendar-title').textContent = \`\${MONTH_NAMES[currentMonth]} \${currentYear}\`;
+      document.getElementById('badge-total-days').textContent = \`\${daysInM} Hari\`;
+      document.getElementById('main-calendar-desc').textContent = \`Tahun \${currentYear} \${leap ? 'adalah Tahun Kabisat (366 hari)' : 'adalah Tahun Biasa (365 hari)'}\`;
+
+      // Status Kabisat Kiri
+      document.getElementById('left-leap-status').innerHTML = leap 
+        ? '✨ <strong class="text-emerald-400">Tahun Kabisat</strong> (366 hari, Feb 29 hari)'
+        : '🗓️ <strong class="text-indigo-300">Tahun Biasa</strong> (365 hari, Feb 28 hari)';
+
+      // Legenda bawah
+      document.getElementById('leap-legend-box').innerHTML = leap 
+        ? '<span class="text-emerald-400 font-semibold">Tahun Kabisat:</span> Habis dibagi 4 / abad habis dibagi 400.'
+        : '<span class="text-slate-400">Tahun Biasa:</span> 365 hari standar.';
+
+      // Grid Rendering (Senin-Minggu, offset: Sen=0, ..., Min=6)
+      const rawStart = getDayOfWeek(currentYear, currentMonth, 1);
+      const offset = (rawStart + 6) % 7;
+
+      const grid = document.getElementById('main-grid');
+      grid.innerHTML = '';
+
+      const prevM = currentMonth === 0 ? 11 : currentMonth - 1;
+      const prevY = currentMonth === 0 ? currentYear - 1 : currentYear;
+      const prevDays = prevY >= 1 ? getDaysInMonth(prevY, prevM) : 31;
+
+      // Padding Bulan Lalu
+      for (let i = offset - 1; i >= 0; i--) {
+        const d = prevDays - i;
+        const cell = document.createElement('div');
+        cell.className = 'h-16 sm:h-20 p-2 rounded-2xl bg-slate-900/40 border border-slate-800/40 text-slate-600 flex flex-col justify-between select-none';
+        cell.innerHTML = \`<span class="text-xs font-semibold">\${d}</span>\`;
+        grid.appendChild(cell);
       }
 
-      // Bersihkan Grid
-      calendarGrid.innerHTML = '';
-
-      // Hitung Hari Awal & Padding Bulan Sebelumnya
-      const firstDayOfWeek = getDayOfWeek(currentYear, currentMonth, 1); // 0=Minggu, 6=Sabtu
-      const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-      const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-      const prevMonthDays = prevYear >= 1 ? getDaysInMonth(prevYear, prevMonth) : 31;
-
-      // Render Hari dari Bulan Sebelumnya (Warna Pudar)
-      for (let i = firstDayOfWeek - 1; i >= 0; i--) {
-        const d = prevMonthDays - i;
-        const cell = document.createElement('div');
-        cell.className = "h-14 md:h-20 p-2 rounded-xl border border-transparent bg-slate-50/50 text-slate-300 flex flex-col justify-between select-none";
-        cell.innerHTML = \`<span class="text-xs md:text-sm font-medium">\${d}</span>\`;
-        calendarGrid.appendChild(cell);
-      }
-
-      // Render Hari Bulan Sekarang
-      for (let d = 1; d <= daysInThisMonth; d++) {
-        const dow = (firstDayOfWeek + (d - 1)) % 7;
-        const isSunday = dow === 0;
-        const isToday = currentYear === realToday.year && currentMonth === realToday.month && d === realToday.day;
+      // Hari Bulan Ini
+      for (let d = 1; d <= daysInM; d++) {
+        const dow = (rawStart + d - 1) % 7;
+        const isSun = dow === 0;
+        const isToday = currentYear === REAL_TODAY.year && currentMonth === REAL_TODAY.month && d === REAL_TODAY.day;
+        const dateKey = \`\${currentYear}-\${String(currentMonth + 1).padStart(2, '0')}-\${String(d).padStart(2, '0')}\`;
+        const hasNotes = savedAgendas.some(a => a.dateKey === dateKey);
 
         const cell = document.createElement('div');
-        cell.className = \`h-14 md:h-20 p-2 rounded-xl border transition cursor-pointer flex flex-col justify-between hover:shadow-md hover:-translate-y-0.5 \${
+        cell.className = \`h-16 sm:h-20 p-2 sm:p-2.5 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between hover:scale-[1.03] hover:shadow-lg \${
           isToday
-            ? 'bg-indigo-600 text-white font-bold ring-2 ring-indigo-400 ring-offset-2 border-indigo-600 shadow-md'
-            : isSunday
-            ? 'bg-white hover:bg-rose-50/40 border-rose-100 text-rose-600'
-            : 'bg-white hover:bg-indigo-50/40 border-slate-200 text-slate-800'
+            ? 'bg-gradient-to-br from-indigo-600 to-purple-600 border-indigo-400 text-white shadow-lg shadow-indigo-600/40 ring-2 ring-indigo-400'
+            : isSun
+            ? 'bg-slate-900/80 border-rose-500/30 hover:border-rose-400 hover:bg-rose-950/20 text-rose-400'
+            : 'bg-slate-900/90 border-slate-800 hover:border-indigo-500 hover:bg-slate-800/90 text-slate-200'
         }\`;
 
         cell.innerHTML = \`
           <div class="flex items-center justify-between">
-            <span class="text-sm md:text-base font-bold \${isToday ? 'text-white' : isSunday ? 'text-rose-600' : 'text-slate-800'}">\${d}</span>
-            \${isToday ? '<span class="text-[10px] uppercase tracking-wider bg-white/20 px-1.5 py-0.5 rounded font-extrabold text-white">Hari Ini</span>' : ''}
+            <span class="text-sm sm:text-base font-extrabold \${isToday ? 'text-white' : isSun ? 'text-rose-400' : 'text-slate-100'}">\${d}</span>
+            <div class="flex items-center gap-1">
+              \${hasNotes ? '<span class="w-2 h-2 rounded-full bg-amber-400"></span>' : ''}
+              \${isToday ? '<span class="text-[9px] bg-white text-indigo-700 px-1 rounded font-black">HARI INI</span>' : ''}
+            </div>
           </div>
-          <span class="text-[10px] md:text-xs opacity-70">\${isSunday ? 'Minggu' : ''}</span>
+          <div class="flex items-center justify-between text-[10px] opacity-70">
+            <span>\${DAY_NAMES[dow]}</span>
+            <span>\${getPasaran(currentYear, currentMonth, d)}</span>
+          </div>
         \`;
 
-        // Interaksi Klik
-        cell.addEventListener('click', () => {
-          alert(\`Tanggal Terpilih: \${d} \${MONTH_NAMES[currentMonth]} \${currentYear}\\nHari: \${['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][dow]}\`);
-        });
-
-        calendarGrid.appendChild(cell);
+        cell.addEventListener('click', () => openModal(currentYear, currentMonth, d));
+        grid.appendChild(cell);
       }
 
-      // Render Hari dari Bulan Berikutnya (Melengkapi baris 7 kolom)
-      const totalRendered = firstDayOfWeek + daysInThisMonth;
+      // Padding Bulan Depan
+      const totalRendered = offset + daysInM;
       const remaining = (7 - (totalRendered % 7)) % 7;
       for (let d = 1; d <= remaining; d++) {
         const cell = document.createElement('div');
-        cell.className = "h-14 md:h-20 p-2 rounded-xl border border-transparent bg-slate-50/50 text-slate-300 flex flex-col justify-between select-none";
-        cell.innerHTML = \`<span class="text-xs md:text-sm font-medium">\${d}</span>\`;
-        calendarGrid.appendChild(cell);
+        cell.className = 'h-16 sm:h-20 p-2 rounded-2xl bg-slate-900/40 border border-slate-800/40 text-slate-600 flex flex-col justify-between select-none';
+        cell.innerHTML = \`<span class="text-xs font-semibold">\${d}</span>\`;
+        grid.appendChild(cell);
       }
     }
 
-    // EVENT LISTENERS
-    selectMonth.addEventListener('change', (e) => {
-      currentMonth = parseInt(e.target.value, 10);
-      renderCalendar();
-    });
+    // Modal Catatan Tanggal
+    function openModal(y, m, d) {
+      selectedDateForModal = { y, m, d };
+      const dow = getDayOfWeek(y, m, d);
+      document.getElementById('modal-date-title').textContent = \`\${d} \${MONTH_NAMES[m]} \${y}\`;
+      document.getElementById('modal-date-sub').textContent = \`Hari \${DAY_NAMES[dow]} \${getPasaran(y, m, d)}\`;
+      renderModalAgendas();
+      document.getElementById('modal-date').classList.remove('hidden');
+    }
 
-    inputYear.addEventListener('change', (e) => {
-      const val = parseInt(e.target.value, 10);
-      if (!isNaN(val) && val >= 1 && val <= 9999) {
-        currentYear = val;
-        renderCalendar();
+    function renderModalAgendas() {
+      if (!selectedDateForModal) return;
+      const { y, m, d } = selectedDateForModal;
+      const key = \`\${y}-\${String(m + 1).padStart(2, '0')}-\${String(d).padStart(2, '0')}\`;
+      const list = document.getElementById('modal-agenda-list');
+      const matches = savedAgendas.filter(a => a.dateKey === key);
+
+      if (matches.length === 0) {
+        list.innerHTML = '<div class="text-slate-500 italic py-2">Belum ada catatan pada tanggal ini.</div>';
+        return;
       }
-    });
 
-    btnPrevMonth.addEventListener('click', () => {
-      if (currentMonth === 0) {
-        if (currentYear > 1) {
-          currentYear--;
-          currentMonth = 11;
-        }
-      } else {
-        currentMonth--;
-      }
-      renderCalendar();
-    });
+      list.innerHTML = matches.map(item => \`
+        <div class="p-2.5 bg-slate-800 rounded-xl flex items-center justify-between border border-slate-700/60">
+          <span class="text-slate-200">\${item.title}</span>
+          <button onclick="removeAgenda('\${item.id}')" class="text-rose-400 hover:text-rose-300 font-bold px-1.5 py-0.5">✕</button>
+        </div>
+      \`).join('');
+    }
 
-    btnNextMonth.addEventListener('click', () => {
-      if (currentMonth === 11) {
-        if (currentYear < 9999) {
-          currentYear++;
-          currentMonth = 0;
-        }
-      } else {
-        currentMonth++;
-      }
-      renderCalendar();
-    });
+    window.removeAgenda = function(id) {
+      savedAgendas = savedAgendas.filter(a => a.id !== id);
+      saveAgendas();
+      renderModalAgendas();
+      renderMainCalendar();
+    };
 
-    btnToday.addEventListener('click', () => {
-      currentYear = realToday.year;
-      currentMonth = realToday.month;
-      renderCalendar();
-    });
-
-    // Preset buttons
-    document.querySelectorAll('.preset-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        currentYear = parseInt(btn.dataset.y, 10);
-        currentMonth = parseInt(btn.dataset.m, 10);
-        renderCalendar();
+    document.getElementById('form-add-agenda').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = document.getElementById('input-agenda-title');
+      const val = input.value.trim();
+      if (!val || !selectedDateForModal) return;
+      const { y, m, d } = selectedDateForModal;
+      savedAgendas.unshift({
+        id: Date.now().toString(),
+        dateKey: \`\${y}-\${String(m + 1).padStart(2, '0')}-\${String(d).padStart(2, '0')}\`,
+        title: val
       });
+      saveAgendas();
+      input.value = '';
+      renderModalAgendas();
+      renderMainCalendar();
     });
 
-    // Inisialisasi awal
-    renderCalendar();
+    document.getElementById('modal-close-btn').addEventListener('click', () => {
+      document.getElementById('modal-date').classList.add('hidden');
+    });
+
+    // Kontrol Navigasi Kanan
+    document.getElementById('btn-prev').addEventListener('click', () => {
+      if (currentMonth === 0) {
+        if (currentYear > 1) { currentYear--; currentMonth = 11; }
+      } else { currentMonth--; }
+      renderMainCalendar();
+    });
+
+    document.getElementById('btn-next').addEventListener('click', () => {
+      if (currentMonth === 11) {
+        if (currentYear < 9999) { currentYear++; currentMonth = 0; }
+      } else { currentMonth++; }
+      renderMainCalendar();
+    });
+
+    document.getElementById('btn-today-main').addEventListener('click', () => {
+      currentYear = REAL_TODAY.year;
+      currentMonth = REAL_TODAY.month;
+      renderMainCalendar();
+    });
+
+    document.getElementById('btn-jump-today').addEventListener('click', () => {
+      currentYear = REAL_TODAY.year;
+      currentMonth = REAL_TODAY.month;
+      renderMainCalendar();
+    });
+
+    // Sinkronisasi Sisi Kiri
+    document.getElementById('left-select-month').addEventListener('change', (e) => {
+      currentMonth = parseInt(e.target.value, 10);
+      renderMainCalendar();
+    });
+
+    document.getElementById('left-input-year').addEventListener('change', (e) => {
+      let val = parseInt(e.target.value, 10);
+      if (isNaN(val) || val < 1) val = 1;
+      if (val > 9999) val = 9999;
+      currentYear = val;
+      renderMainCalendar();
+    });
+
+    // Navigasi Menu Kiri (Alert Info Cepat)
+    document.getElementById('menu-agenda').addEventListener('click', () => {
+      if (savedAgendas.length === 0) {
+        alert('Belum ada catatan tersimpan. Klik tanggal mana saja pada kalender untuk menambahkan agenda!');
+      } else {
+        alert(\`Total ada \${savedAgendas.length} agenda tersimpan dalam kalender!\`);
+      }
+    });
+
+    document.getElementById('menu-sejarah').addEventListener('click', () => {
+      alert('Sejarah Terkenal:\\n- 17 Agu 1945: Proklamasi RI\\n- 28 Okt 1928: Sumpah Pemuda\\n- 1 Jan 2000: Pergantian Milenium');
+    });
+
+    // Jalankan render awal
+    renderMainCalendar();
   </script>
 </body>
 </html>`;
   }, []);
 
   const handleDownloadStandaloneHtml = () => {
-    const blob = new Blob([standaloneHtmlCode], { type: 'text/html;charset=utf-8' });
+    const blob = new Blob([standaloneSingleFileHtml], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `KalenderAbadi_${currentYear}_${MONTH_NAMES[currentMonth]}.html`;
+    a.download = `KalenderAbadi_Dashboard_${currentYear}_${MONTH_NAMES[currentMonth]}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -597,563 +871,572 @@ export default function App() {
   };
 
   const handleCopyStandaloneHtml = () => {
-    navigator.clipboard.writeText(standaloneHtmlCode);
+    navigator.clipboard.writeText(standaloneSingleFileHtml);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
-  // Kalkulasi detail untuk modal inspector tanggal terpilih
-  const selectedDetails = useMemo(() => {
-    if (!selectedDate) return null;
-    const { year, month, day } = selectedDate;
-    const dow = getDayOfWeek(year, month, day);
-    const dayName = DAY_NAMES[dow].full;
-    const pasaran = getPasaran(year, month, day);
-    const dayOfYear = getDayOfYear(year, month, day);
-    const totalDaysInYear = isLeapYear(year) ? 366 : 365;
-    const daysLeftInYear = totalDaysInYear - dayOfYear;
-    const weekNumber = Math.ceil(dayOfYear / 7);
-
-    // Selisih hari dari real-time hari ini
-    const todayJdn = getJulianDayNumber(today.year, today.month, today.day);
-    const thisJdn = getJulianDayNumber(year, month, day);
-    const diffDays = thisJdn - todayJdn;
-
-    return {
-      dateStr: `${day} ${MONTH_NAMES[month]} ${year}`,
-      dayName,
-      pasaran,
-      dayOfYear,
-      totalDaysInYear,
-      daysLeftInYear,
-      weekNumber,
-      diffDays,
-      isToday: year === today.year && month === today.month && day === today.day
-    };
-  }, [selectedDate, today]);
-
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center p-3 sm:p-6 md:p-8 font-sans selection:bg-indigo-500 selection:text-white">
-      {/* Background ambient glow */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-30">
-        <div className="absolute -top-40 left-1/4 w-96 h-96 bg-indigo-600 rounded-full blur-[140px]" />
-        <div className="absolute top-1/2 -right-20 w-80 h-80 bg-rose-600 rounded-full blur-[140px]" />
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-2 sm:p-4 md:p-6 lg:p-8 font-sans selection:bg-indigo-500 selection:text-white">
+      {/* Background ambient gradient glow */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-35">
+        <div className="absolute -top-40 left-1/3 w-[550px] h-[550px] bg-indigo-600 rounded-full blur-[160px]" />
+        <div className="absolute bottom-10 -right-20 w-[450px] h-[450px] bg-purple-600 rounded-full blur-[160px]" />
       </div>
 
-      <div className="relative w-full max-w-5xl bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-2xl shadow-indigo-950/40 overflow-hidden flex flex-col">
-        {/* Top Header */}
-        <header className="p-6 md:p-8 border-b border-slate-800 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                  Presisi Tahun 1 - 9999 Masehi
-                </span>
-                <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  Kalender Gregorian
-                </span>
+      {/* DASHBOARD UTAMA (Split Layout 2 Kolom) */}
+      <div className="relative w-full max-w-7xl bg-slate-950/90 backdrop-blur-2xl border border-slate-800 rounded-3xl shadow-2xl shadow-indigo-950/50 overflow-hidden flex flex-col lg:flex-row">
+        
+        {/* ============================================================== */}
+        {/* PANEL INFORMASI "HARI INI" & KONTROL CEPAT (Sisi Kiri, 1/3)     */}
+        {/* ============================================================== */}
+        <aside className="lg:w-96 xl:w-[420px] bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 p-6 md:p-8 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-indigo-900/30 relative overflow-hidden">
+          
+          {/* Subtle glow highlight */}
+          <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-indigo-500/10 to-transparent pointer-events-none" />
+
+          <div className="relative z-10 space-y-6">
+            
+            {/* Header Brand */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-500 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-600/30">
+                  KA
+                </div>
+                <div>
+                  <h1 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-1.5">
+                    Kalender Abadi
+                  </h1>
+                  <p className="text-xs text-indigo-300 font-medium">Digital Smart Dashboard</p>
+                </div>
               </div>
-              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white flex items-center gap-3">
-                <CalendarIcon className="w-8 h-8 text-indigo-400" />
-                Kalender Abadi
-              </h1>
-              <p className="text-slate-400 text-sm mt-1 max-w-xl">
-                Aplikasi penanggalan abadi interaktif dengan algoritma tahun kabisat dan kalkulasi hari deterministik tanpa batas.
-              </p>
+
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-sm">
+                1 - 9999 M
+              </span>
             </div>
 
-            {/* Aksi Cepat Header */}
-            <div className="flex flex-wrap items-center gap-2">
+            {/* Kartu Besar Dinamis "Hari Ini" dengan Gradasi Ungu/Biru & Jam Analog */}
+            <div className="relative rounded-2xl p-5 bg-gradient-to-br from-indigo-600/20 via-purple-600/10 to-blue-600/10 border border-indigo-500/30 backdrop-blur-md shadow-xl shadow-indigo-950/40 overflow-hidden">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  Waktu Nyata
+                </span>
+
+                {/* Digital Clock */}
+                <div className="text-xs font-mono font-bold bg-slate-950/70 px-2.5 py-1 rounded-lg border border-indigo-500/30 text-indigo-200">
+                  {realTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </div>
+              </div>
+
+              {/* Jam Analog Interaktif */}
+              <div className="flex justify-center my-3">
+                <div className="relative w-28 h-28 rounded-full border-2 border-indigo-400/30 bg-slate-950/80 shadow-inner flex items-center justify-center">
+                  {/* Jam markers */}
+                  <span className="absolute top-1 text-[9px] font-bold text-indigo-300">12</span>
+                  <span className="absolute right-1 text-[9px] font-bold text-indigo-300">3</span>
+                  <span className="absolute bottom-1 text-[9px] font-bold text-indigo-300">6</span>
+                  <span className="absolute left-1 text-[9px] font-bold text-indigo-300">9</span>
+
+                  {/* Jarum Jam */}
+                  <div
+                    className="absolute w-1 h-7 bg-indigo-200 rounded origin-bottom bottom-14 shadow transition-transform duration-150"
+                    style={{ transform: `rotate(${hoursAngle}deg)` }}
+                  />
+                  {/* Jarum Menit */}
+                  <div
+                    className="absolute w-0.5 h-10 bg-indigo-100 rounded origin-bottom bottom-14 shadow transition-transform duration-150"
+                    style={{ transform: `rotate(${minutesAngle}deg)` }}
+                  />
+                  {/* Jarum Detik */}
+                  <div
+                    className="absolute w-0.5 h-11 bg-rose-400 rounded origin-bottom bottom-14 shadow transition-transform duration-75"
+                    style={{ transform: `rotate(${secondsAngle}deg)` }}
+                  />
+                  {/* Pivot center */}
+                  <div className="w-2.5 h-2.5 bg-rose-500 rounded-full z-10 border-2 border-white" />
+                </div>
+              </div>
+
+              {/* Teks Tanggal Real-Time Lengkap */}
+              <div className="text-center mt-3 pt-3 border-t border-indigo-500/20">
+                <div className="text-xs font-semibold text-indigo-300">
+                  {DAYS_SUN_FIRST[realTime.getDay()].full}
+                </div>
+                <div className="text-xl md:text-2xl font-extrabold text-white tracking-tight mt-0.5">
+                  {todayDate} {MONTH_NAMES[todayMonth]} {todayYear}
+                </div>
+                <div className="text-xs text-indigo-300/80 mt-1 flex items-center justify-center gap-1.5">
+                  <span>Pasaran Jawa:</span>
+                  <span className="font-semibold text-white">
+                    {getPasaran(todayYear, todayMonth, todayDate)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Fitur "Lompat ke Tahun/Bulan" Cepat Menyatu dalam Sisi Kiri */}
+            <div className="bg-slate-900/80 rounded-2xl p-4 border border-indigo-900/40 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-300">Lompat Cepat</h3>
+                <button
+                  onClick={jumpToToday}
+                  className="text-xs text-indigo-400 hover:text-indigo-200 font-medium transition cursor-pointer flex items-center gap-1"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Hari Ini
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-slate-400 font-semibold block mb-1">Bulan:</label>
+                  <select
+                    value={currentMonth}
+                    onChange={(e) => setCurrentMonth(parseInt(e.target.value, 10))}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2 text-xs font-semibold text-white focus:ring-2 focus:ring-indigo-400 focus:outline-none cursor-pointer"
+                  >
+                    {MONTH_NAMES.map((m, idx) => (
+                      <option key={m} value={idx}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-slate-400 font-semibold block mb-1">Tahun (1-9999):</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="9999"
+                    value={currentYear}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      if (!isNaN(val) && val >= 1 && val <= 9999) setCurrentYear(val);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2 text-xs font-bold text-center text-white focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Sidebar Kecil: Menu Statis (Home / Catatan Agenda / Sejarah Hari Ini) */}
+            <nav className="space-y-1.5 text-xs">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Navigasi Tab</div>
+              
               <button
-                onClick={jumpToToday}
-                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-semibold rounded-xl text-sm shadow-lg shadow-indigo-600/30 transition flex items-center gap-2 cursor-pointer"
-                title="Kembali ke Tanggal Hari Ini"
+                onClick={() => setActiveTab('calendar')}
+                className={`w-full text-left px-3.5 py-2.5 rounded-xl font-semibold flex items-center justify-between transition cursor-pointer ${
+                  activeTab === 'calendar'
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                    : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                }`}
               >
-                <RotateCcw className="w-4 h-4" />
-                Hari Ini
+                <div className="flex items-center gap-2.5">
+                  <CalendarDays className="w-4 h-4" />
+                  <span>Tampilan Kalender</span>
+                </div>
+                <span className="text-[10px] opacity-75">Utama</span>
               </button>
 
               <button
-                onClick={handleDownloadStandaloneHtml}
-                className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-medium rounded-xl text-sm border border-slate-700 transition flex items-center gap-2 cursor-pointer"
-                title="Unduh versi satu file HTML mandiri"
+                onClick={() => setActiveTab('agenda')}
+                className={`w-full text-left px-3.5 py-2.5 rounded-xl font-medium flex items-center justify-between transition cursor-pointer ${
+                  activeTab === 'agenda'
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                    : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                }`}
               >
-                <Download className="w-4 h-4 text-indigo-400" />
-                <span className="hidden sm:inline">Unduh HTML</span>
+                <div className="flex items-center gap-2.5">
+                  <CheckSquare className="w-4 h-4 text-indigo-400" />
+                  <span>Catatan Agenda</span>
+                </div>
+                <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-bold">
+                  {agendas.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('history')}
+                className={`w-full text-left px-3.5 py-2.5 rounded-xl font-medium flex items-center justify-between transition cursor-pointer ${
+                  activeTab === 'history'
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                    : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <BookOpen className="w-4 h-4 text-purple-400" />
+                  <span>Sejarah Hari Ini</span>
+                </div>
+                <span className="text-[10px] text-purple-300">5 Era</span>
+              </button>
+            </nav>
+          </div>
+
+          {/* Bagian Bawah Sisi Kiri: Status Tahun Kabisat & Aksi Unduh */}
+          <div className="mt-6 pt-4 border-t border-slate-800/80 space-y-3">
+            <div className={`p-3 rounded-xl border text-xs text-center font-medium ${
+              leap
+                ? 'bg-emerald-950/40 text-emerald-300 border-emerald-500/30'
+                : 'bg-slate-900/80 text-slate-300 border-slate-800'
+            }`}>
+              {leap ? (
+                <span>✨ <strong>Tahun Kabisat</strong> (366 hari, Feb 29 hari)</span>
+              ) : (
+                <span>🗓️ <strong>Tahun Biasa</strong> (365 hari, Feb 28 hari)</span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDownloadStandaloneHtml}
+                className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-xl text-slate-200 border border-slate-700 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                title="Unduh satu file HTML mandiri"
+              >
+                <Download className="w-3.5 h-3.5 text-indigo-400" />
+                Unduh HTML
               </button>
 
               <button
                 onClick={handleCopyStandaloneHtml}
-                className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-medium rounded-xl text-sm border border-slate-700 transition flex items-center gap-2 cursor-pointer"
-                title="Salin kode satu file HTML ke clipboard"
+                className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-xl text-slate-200 border border-slate-700 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                title="Salin kode HTML"
               >
-                {copiedCode ? (
-                  <>
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span className="text-emerald-400 text-xs font-bold">Tersalin!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4 text-slate-400" />
-                    <span className="hidden sm:inline">Salin Kode</span>
-                  </>
-                )}
+                {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
               </button>
             </div>
           </div>
-        </header>
+        </aside>
 
-        {/* Kontrol Navigasi & Input Form */}
-        <section className="p-5 md:p-6 bg-slate-900/60 border-b border-slate-800">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-            {/* Navigasi Bulan */}
-            <div className="md:col-span-5 flex items-center gap-2">
-              <button
-                onClick={handlePrevMonth}
-                disabled={currentYear === 1 && currentMonth === 0}
-                className="p-2.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700 active:scale-95 text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
-                aria-label="Bulan Sebelumnya"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-
-              <div className="relative flex-1">
-                <select
-                  value={currentMonth}
-                  onChange={(e) => setCurrentMonth(parseInt(e.target.value, 10))}
-                  className="w-full appearance-none px-4 py-2.5 bg-slate-800 border border-slate-700 text-white font-semibold text-sm rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition cursor-pointer"
-                >
-                  {MONTH_NAMES.map((name, idx) => (
-                    <option key={name} value={idx}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">
-                  ▼
-                </div>
-              </div>
-
-              <button
-                onClick={handleNextMonth}
-                disabled={currentYear === 9999 && currentMonth === 11}
-                className="p-2.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700 active:scale-95 text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
-                aria-label="Bulan Berikutnya"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Input Angka Tahun Langsung */}
-            <div className="md:col-span-4 flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tahun:</span>
-              <div className="flex items-center gap-1 flex-1">
-                <button
-                  onClick={() => changeYearBy(-1)}
-                  className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs cursor-pointer"
-                  title="Kurang 1 Tahun"
-                >
-                  -1
-                </button>
-                <input
-                  type="number"
-                  min="1"
-                  max="9999"
-                  value={yearInput}
-                  onChange={handleYearInputChange}
-                  onBlur={handleYearInputBlur}
-                  className="w-full text-center py-2.5 px-3 bg-slate-800 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 text-white font-bold text-base rounded-xl focus:outline-none transition"
-                  placeholder="1 - 9999"
-                />
-                <button
-                  onClick={() => changeYearBy(1)}
-                  className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs cursor-pointer"
-                  title="Tambah 1 Tahun"
-                >
-                  +1
-                </button>
-              </div>
-            </div>
-
-            {/* Indikator Teks Status Tahun Kabisat vs Biasa */}
-            <div className="md:col-span-3">
-              {leap ? (
-                <div className="px-3.5 py-2.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs flex items-center justify-center gap-2 shadow-sm shadow-emerald-950/20">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="font-bold">Tahun Kabisat</span> (366 hari)
-                </div>
-              ) : (
-                <div className="px-3.5 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-300 text-xs flex items-center justify-center gap-2 shadow-sm">
-                  <span className="w-2 h-2 rounded-full bg-slate-500" />
-                  <span className="font-medium">Tahun Biasa</span> (365 hari)
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Stepper Cepat Abad / Dekade & Presets */}
-          <div className="mt-4 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-slate-400 font-medium mr-1">Lompatan:</span>
-              <button
-                onClick={() => changeYearBy(-100)}
-                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-md text-slate-300 transition cursor-pointer"
-              >
-                -100 Thn
-              </button>
-              <button
-                onClick={() => changeYearBy(-10)}
-                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-md text-slate-300 transition cursor-pointer"
-              >
-                -10 Thn
-              </button>
-              <button
-                onClick={() => changeYearBy(10)}
-                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-md text-slate-300 transition cursor-pointer"
-              >
-                +10 Thn
-              </button>
-              <button
-                onClick={() => changeYearBy(100)}
-                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-md text-slate-300 transition cursor-pointer"
-              >
-                +100 Thn
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-slate-400 font-medium mr-1">Preset Sejarah:</span>
-              {presets.map((p) => (
-                <button
-                  key={p.label}
-                  onClick={() => {
-                    setCurrentYear(p.y);
-                    setCurrentMonth(p.m);
-                    setSelectedDate({ year: p.y, month: p.m, day: p.d });
-                  }}
-                  className="px-2.5 py-1 bg-slate-800/80 hover:bg-indigo-900/40 hover:border-indigo-500/50 hover:text-indigo-300 border border-slate-700 rounded-lg text-slate-300 transition cursor-pointer"
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Bar Judul Kalender & View Switcher */}
-        <div className="py-4 px-6 bg-slate-900 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800">
+        {/* ============================================================== */}
+        {/* AREA KALENDER INTERAKTIF UTAMA (Sisi Kanan, 2/3)                 */}
+        {/* ============================================================== */}
+        <main className="flex-1 p-5 sm:p-6 md:p-8 flex flex-col justify-between bg-slate-950/40">
+          
           <div>
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-              <span>{MONTH_NAMES[currentMonth]}</span>
-              <span className="text-indigo-400">{currentYear}</span>
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Total {getDaysInMonth(currentYear, currentMonth)} hari &bull; Hari pertama:{' '}
-              {DAY_NAMES[getDayOfWeek(currentYear, currentMonth, 1)].full}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="bg-slate-800 p-1 rounded-xl border border-slate-700 flex items-center text-xs">
-              <button
-                onClick={() => setViewMode('month')}
-                className={`px-3 py-1.5 rounded-lg font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                  viewMode === 'month'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <CalendarDays className="w-3.5 h-3.5" />
-                Bulanan
-              </button>
-              <button
-                onClick={() => setViewMode('year')}
-                className={`px-3 py-1.5 rounded-lg font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                  viewMode === 'year'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5" />
-                Tahunan (12 Bln)
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* TAMPILAN BULANAN UTAMA */}
-        {viewMode === 'month' && (
-          <div className="p-4 sm:p-6 flex-1 flex flex-col">
-            {/* 7 Kolom Header Hari dengan penanda merah khusus Minggu */}
-            <div className="grid grid-cols-7 gap-2 mb-3 text-center">
-              {DAY_NAMES.map((d) => (
-                <div
-                  key={d.short}
-                  className={`py-2.5 rounded-xl font-bold text-xs sm:text-sm border ${
-                    d.isSunday
-                      ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                      : 'bg-slate-800/60 text-slate-300 border-slate-800'
-                  }`}
-                >
-                  <span className="hidden sm:inline">{d.full}</span>
-                  <span className="sm:hidden">{d.short}</span>
+            {/* Top Bar Kalender Kanan */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-800">
+              <div>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
+                    <span>{MONTH_NAMES[currentMonth]}</span>
+                    <span className="text-indigo-400">{currentYear}</span>
+                  </h2>
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-semibold">
+                    {getDaysInMonth(currentYear, currentMonth)} Hari
+                  </span>
                 </div>
-              ))}
+                <p className="text-xs text-slate-400 mt-1">
+                  Hari pertama: <span className="text-slate-200 font-semibold">{DAYS_SUN_FIRST[getDayOfWeek(currentYear, currentMonth, 1)].full}</span> &bull; Status: {leap ? 'Tahun Kabisat (Feb 29 hari)' : 'Tahun Biasa (Feb 28 hari)'}
+                </p>
+              </div>
+
+              {/* Kontrol Navigasi Kanan (<, >, Today, Toggle Mulai Senin/Minggu) */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Toggle Mulai Senin / Minggu */}
+                <button
+                  onClick={() => setStartOnMonday(!startOnMonday)}
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-700 bg-slate-900 text-slate-300 text-xs hover:border-slate-600 transition flex items-center gap-1.5 cursor-pointer"
+                  title="Ganti hari pertama kolom (Senin atau Minggu)"
+                >
+                  <Settings2 className="w-3.5 h-3.5 text-indigo-400" />
+                  Mulai: {startOnMonday ? 'Senin' : 'Minggu'}
+                </button>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handlePrevMonth}
+                    disabled={currentYear === 1 && currentMonth === 0}
+                    className="p-2 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 transition disabled:opacity-30 cursor-pointer"
+                    title="Bulan Sebelumnya"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    onClick={jumpToToday}
+                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-600/30 transition cursor-pointer"
+                  >
+                    Today
+                  </button>
+
+                  <button
+                    onClick={handleNextMonth}
+                    disabled={currentYear === 9999 && currentMonth === 11}
+                    className="p-2 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 transition disabled:opacity-30 cursor-pointer"
+                    title="Bulan Berikutnya"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* Grid Tanggal */}
-            <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 flex-1">
-              {calendarCells.map((cell, idx) => {
-                const isSunday = cell.dayOfWeek === 0;
-                const isRealToday =
-                  cell.year === today.year &&
-                  cell.month === today.month &&
-                  cell.day === today.day;
-                const isSelected =
-                  selectedDate?.year === cell.year &&
-                  selectedDate?.month === cell.month &&
-                  selectedDate?.day === cell.day;
+            {/* TAB KONTEN 1: KALENDER GRID */}
+            {activeTab === 'calendar' && (
+              <div className="mt-4">
+                {/* 7 Kolom Header Hari (Senin-Minggu, Minggu Merah Khusus) */}
+                <div className="grid grid-cols-7 gap-1.5 sm:gap-2 mb-2.5 text-center text-xs sm:text-sm font-bold">
+                  {dayHeaders.map((dh) => (
+                    <div
+                      key={dh.short}
+                      className={`py-2 rounded-xl border ${
+                        dh.isSunday
+                          ? 'text-rose-400 bg-rose-500/10 border-rose-500/20 font-extrabold'
+                          : 'text-slate-300 bg-slate-900/60 border-slate-800'
+                      }`}
+                    >
+                      <span className="hidden sm:inline">{dh.full}</span>
+                      <span className="sm:hidden">{dh.short}</span>
+                    </div>
+                  ))}
+                </div>
 
-                return (
-                  <div
-                    key={`${cell.year}-${cell.month}-${cell.day}-${idx}`}
-                    onClick={() => {
-                      if (!cell.isCurrentMonth) {
-                        setCurrentYear(cell.year);
-                        setCurrentMonth(cell.month);
-                      }
-                      setSelectedDate({ year: cell.year, month: cell.month, day: cell.day });
-                    }}
-                    className={`group relative min-h-[70px] sm:min-h-[90px] p-2 sm:p-2.5 rounded-2xl border transition duration-200 cursor-pointer flex flex-col justify-between overflow-hidden ${
-                      !cell.isCurrentMonth
-                        ? 'bg-slate-900/30 border-slate-800/40 text-slate-600 hover:border-slate-700'
-                        : isRealToday
-                        ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white border-indigo-400 ring-2 ring-indigo-400/50 shadow-lg shadow-indigo-600/30'
-                        : isSelected
-                        ? 'bg-indigo-950/60 border-indigo-500 ring-2 ring-indigo-500/60 text-white'
-                        : isSunday
-                        ? 'bg-slate-900/80 border-slate-800 hover:border-rose-500/50 hover:bg-rose-950/20 text-rose-400'
-                        : 'bg-slate-900/80 border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800/80 text-slate-200'
-                    } hover:-translate-y-0.5 hover:shadow-md`}
-                  >
-                    {/* Header Kotak Tanggal */}
-                    <div className="flex items-start justify-between">
-                      <span
-                        className={`text-base sm:text-lg font-bold leading-none ${
+                {/* Grid Kotak Tanggal */}
+                <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 min-h-[350px]">
+                  {calendarCells.map((cell, idx) => {
+                    const isSunday = cell.dow === 0;
+                    const isRealToday =
+                      cell.year === todayYear &&
+                      cell.month === todayMonth &&
+                      cell.day === todayDate;
+                    const dateKey = `${cell.year}-${String(cell.month + 1).padStart(2, '0')}-${String(cell.day).padStart(2, '0')}`;
+                    const hasAgenda = agendas.some(a => a.dateKey === dateKey);
+
+                    return (
+                      <div
+                        key={`${cell.year}-${cell.month}-${cell.day}-${idx}`}
+                        onClick={() => {
+                          if (!cell.isCurrentMonth) {
+                            setCurrentYear(cell.year);
+                            setCurrentMonth(cell.month);
+                          }
+                          setSelectedDate({ year: cell.year, month: cell.month, day: cell.day });
+                        }}
+                        className={`group relative h-16 sm:h-20 p-2 sm:p-2.5 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between hover:scale-[1.03] hover:shadow-lg ${
                           !cell.isCurrentMonth
-                            ? 'text-slate-600'
+                            ? 'bg-slate-950/40 border-slate-900 text-slate-600 hover:border-slate-800'
                             : isRealToday
-                            ? 'text-white'
+                            ? 'bg-gradient-to-br from-indigo-600 via-indigo-600 to-purple-600 border-indigo-400 text-white shadow-lg shadow-indigo-600/40 ring-2 ring-indigo-400'
                             : isSunday
-                            ? 'text-rose-400 font-extrabold'
-                            : 'text-slate-100'
+                            ? 'bg-slate-900/80 border-slate-800 hover:border-rose-500/50 hover:bg-rose-950/20 text-rose-400'
+                            : 'bg-slate-900/80 border-slate-800 hover:border-indigo-500/50 hover:bg-slate-800/80 text-slate-200'
                         }`}
                       >
-                        {cell.day}
-                      </span>
+                        {/* Header Cell */}
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`text-sm sm:text-base font-extrabold ${
+                              !cell.isCurrentMonth
+                                ? 'text-slate-600'
+                                : isRealToday
+                                ? 'text-white'
+                                : isSunday
+                                ? 'text-rose-400'
+                                : 'text-slate-100'
+                            }`}
+                          >
+                            {cell.day}
+                          </span>
 
-                      {/* Penanda Khusus Real Today */}
-                      {isRealToday && (
-                        <span className="text-[10px] tracking-wider uppercase font-black px-1.5 py-0.5 rounded bg-white text-indigo-700 shadow-sm">
-                          Hari Ini
-                        </span>
-                      )}
+                          <div className="flex items-center gap-1">
+                            {hasAgenda && (
+                              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" title="Ada Catatan Agenda" />
+                            )}
+                            {isRealToday && (
+                              <span className="text-[9px] bg-white text-indigo-700 px-1 py-0.2 rounded font-black tracking-wide">
+                                HARI INI
+                              </span>
+                            )}
+                          </div>
+                        </div>
 
-                      {/* Pasaran Mini */}
-                      {cell.isCurrentMonth && !isRealToday && (
-                        <span className="text-[10px] text-slate-500 group-hover:text-slate-400 transition">
-                          {getPasaran(cell.year, cell.month, cell.day)}
-                        </span>
-                      )}
-                    </div>
+                        {/* Footer Cell */}
+                        <div className="flex items-center justify-between text-[10px] opacity-70">
+                          <span className={isSunday ? 'text-rose-400 font-semibold' : 'text-slate-400'}>
+                            {DAYS_SUN_FIRST[cell.dow].short}
+                          </span>
+                          {cell.isCurrentMonth && (
+                            <span className="text-slate-500 group-hover:text-slate-300">
+                              {getPasaran(cell.year, cell.month, cell.day)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
-                    {/* Footer Info Kotak Tanggal */}
-                    <div className="flex items-center justify-between text-[10px] opacity-75">
-                      <span className={isSunday ? 'text-rose-400/90' : 'text-slate-400'}>
-                        {DAY_NAMES[cell.dayOfWeek].short}
-                      </span>
-                      {cell.isCurrentMonth && (
-                        <span className="text-slate-500 group-hover:text-slate-300">
-                          #{getDayOfYear(cell.year, cell.month, cell.day)}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Hover Glow Accent */}
-                    <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 pointer-events-none transition" />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* TAMPILAN TAHUNAN (12 Bulan Ringkas) */}
-        {viewMode === 'year' && (
-          <div className="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-h-[750px] overflow-y-auto">
-            {MONTH_NAMES.map((monthName, mIdx) => {
-              const daysInM = getDaysInMonth(currentYear, mIdx);
-              const startDow = getDayOfWeek(currentYear, mIdx, 1);
-              const blanks = Array.from({ length: startDow });
-              const days = Array.from({ length: daysInM }, (_, i) => i + 1);
-
-              return (
-                <div
-                  key={monthName}
-                  onClick={() => {
-                    setCurrentMonth(mIdx);
-                    setViewMode('month');
-                  }}
-                  className={`p-3.5 rounded-2xl border transition cursor-pointer group hover:-translate-y-1 ${
-                    mIdx === currentMonth
-                      ? 'bg-indigo-950/40 border-indigo-500 shadow-md'
-                      : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-800/60'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-bold text-sm text-white group-hover:text-indigo-400 transition">
-                      {monthName}
+            {/* TAB KONTEN 2: CATATAN AGENDA LENGKAP */}
+            {activeTab === 'agenda' && (
+              <div className="mt-4 p-5 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                      <CheckSquare className="w-5 h-5 text-indigo-400" />
+                      Catatan Agenda untuk {selectedDate ? `${selectedDate.day} ${MONTH_NAMES[selectedDate.month]} ${selectedDate.year}` : 'Tanggal Terpilih'}
                     </h3>
-                    <span className="text-[10px] text-slate-500">{daysInM} hari</span>
+                    <p className="text-xs text-slate-400">Kelola kegiatan dan memo penting yang tersimpan secara lokal.</p>
                   </div>
+                  <button
+                    onClick={() => setActiveTab('calendar')}
+                    className="text-xs text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer"
+                  >
+                    Kembali ke Kalender &rarr;
+                  </button>
+                </div>
 
-                  <div className="grid grid-cols-7 gap-1 text-[10px] text-center mb-1 text-slate-500 font-semibold">
-                    <span className="text-rose-400">M</span>
-                    <span>S</span>
-                    <span>S</span>
-                    <span>R</span>
-                    <span>K</span>
-                    <span>J</span>
-                    <span>S</span>
-                  </div>
+                {/* Form Input Tambah Agenda */}
+                <form onSubmit={handleAddAgenda} className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={newAgendaTitle}
+                    onChange={(e) => setNewAgendaTitle(e.target.value)}
+                    placeholder="Tulis judul agenda / memo..."
+                    className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <input
+                    type="time"
+                    value={newAgendaTime}
+                    onChange={(e) => setNewAgendaTime(e.target.value)}
+                    className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Tambah
+                  </button>
+                </form>
 
-                  <div className="grid grid-cols-7 gap-1 text-[10px] text-center">
-                    {blanks.map((_, i) => (
-                      <span key={`b-${i}`} className="text-transparent">
-                        .
-                      </span>
-                    ))}
-                    {days.map((d) => {
-                      const dow = (startDow + d - 1) % 7;
-                      const isSun = dow === 0;
-                      const isReal =
-                        currentYear === today.year &&
-                        mIdx === today.month &&
-                        d === today.day;
+                {/* List Agenda */}
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {selectedAgendas.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500 text-xs italic">
+                      Belum ada agenda pada tanggal {selectedDateKey}. Tambahkan agenda pertama Anda di atas!
+                    </div>
+                  ) : (
+                    selectedAgendas.map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-3 bg-slate-800/80 rounded-xl border border-slate-700/60 flex items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={item.completed}
+                            onChange={() => toggleAgenda(item.id)}
+                            className="w-4 h-4 rounded text-indigo-600 cursor-pointer"
+                          />
+                          <div>
+                            <span className={`font-medium ${item.completed ? 'line-through text-slate-500' : 'text-slate-100'}`}>
+                              {item.title}
+                            </span>
+                            {item.time && (
+                              <span className="ml-2 text-[10px] text-indigo-400 bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-800/40">
+                                {item.time}
+                              </span>
+                            )}
+                          </div>
+                        </div>
 
-                      return (
-                        <span
-                          key={`d-${d}`}
-                          className={`rounded py-0.5 ${
-                            isReal
-                              ? 'bg-indigo-600 text-white font-bold'
-                              : isSun
-                              ? 'text-rose-400 font-semibold'
-                              : 'text-slate-300'
-                          }`}
+                        <button
+                          onClick={() => deleteAgenda(item.id)}
+                          className="text-slate-400 hover:text-rose-400 transition p-1 cursor-pointer"
+                          title="Hapus Agenda"
                         >
-                          {d}
-                        </span>
-                      );
-                    })}
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB KONTEN 3: SEJARAH HARI INI */}
+            {activeTab === 'history' && (
+              <div className="mt-4 p-5 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                      <BookOpen className="w-5 h-5 text-purple-400" />
+                      Peristiwa Sejarah Penting & Uji Kalender Abadi
+                    </h3>
+                    <p className="text-xs text-slate-400">Klik salah satu peristiwa untuk langsung melompat ke tanggal tersebut di kalender.</p>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* MODAL / INSPECTOR DETAIL TANGGAL */}
-        {selectedDetails && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-md w-full shadow-2xl relative text-left">
-              <button
-                onClick={() => setSelectedDate(null)}
-                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition cursor-pointer"
-              >
-                ✕
-              </button>
-
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-3 bg-indigo-600/20 border border-indigo-500/30 rounded-2xl text-indigo-400">
-                  <CalendarDays className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white">{selectedDetails.dateStr}</h3>
-                  <p className="text-xs text-indigo-400 font-medium">
-                    {selectedDetails.dayName} {selectedDetails.pasaran} (Pasaran Jawa)
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2.5 text-xs">
-                <div className="p-3 bg-slate-800/70 rounded-xl flex items-center justify-between border border-slate-700/50">
-                  <span className="text-slate-400 flex items-center gap-1.5">
-                    <Compass className="w-3.5 h-3.5 text-indigo-400" /> Hari dalam Tahun Ini
-                  </span>
-                  <span className="font-bold text-white">
-                    Hari ke-{selectedDetails.dayOfYear} dari {selectedDetails.totalDaysInYear} hari
-                  </span>
+                  <button
+                    onClick={() => setActiveTab('calendar')}
+                    className="text-xs text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer"
+                  >
+                    Kembali ke Kalender &rarr;
+                  </button>
                 </div>
 
-                <div className="p-3 bg-slate-800/70 rounded-xl flex items-center justify-between border border-slate-700/50">
-                  <span className="text-slate-400 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-indigo-400" /> Sisa Hari di Tahun {selectedDate?.year}
-                  </span>
-                  <span className="font-bold text-white">{selectedDetails.daysLeftInYear} hari lagi</span>
-                </div>
-
-                <div className="p-3 bg-slate-800/70 rounded-xl flex items-center justify-between border border-slate-700/50">
-                  <span className="text-slate-400 flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-indigo-400" /> Minggu ke-
-                  </span>
-                  <span className="font-bold text-white">Minggu ke-{selectedDetails.weekNumber}</span>
-                </div>
-
-                <div className="p-3 bg-slate-800/70 rounded-xl flex items-center justify-between border border-slate-700/50">
-                  <span className="text-slate-400 flex items-center gap-1.5">
-                    <RotateCcw className="w-3.5 h-3.5 text-indigo-400" /> Jarak dari Hari Ini
-                  </span>
-                  <span className="font-bold text-white">
-                    {selectedDetails.diffDays === 0
-                      ? 'Hari ini tepat!'
-                      : selectedDetails.diffDays > 0
-                      ? `${selectedDetails.diffDays} hari lagi di masa depan`
-                      : `${Math.abs(selectedDetails.diffDays)} hari yang lalu`}
-                  </span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto">
+                  {historicalEvents.map((evt) => (
+                    <div
+                      key={evt.title}
+                      onClick={() => {
+                        setCurrentYear(evt.year);
+                        setCurrentMonth(evt.month);
+                        setSelectedDate({ year: evt.year, month: evt.month, day: evt.day });
+                        setActiveTab('calendar');
+                      }}
+                      className="p-4 rounded-xl bg-slate-800/80 border border-slate-700/60 hover:border-indigo-500/60 hover:bg-indigo-950/20 transition cursor-pointer flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-bold text-indigo-400">
+                            {evt.day} {MONTH_NAMES[evt.month]} {evt.year}
+                          </span>
+                          <span className="text-[10px] bg-slate-700 px-2 py-0.5 rounded text-slate-300">
+                            Lompat
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-bold text-white mb-1">{evt.title}</h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">{evt.desc}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
+            )}
+          </div>
 
-              <div className="mt-5 pt-4 border-t border-slate-800 flex justify-end">
-                <button
-                  onClick={() => setSelectedDate(null)}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl text-xs transition cursor-pointer"
-                >
-                  Tutup
-                </button>
+          {/* Legenda & Keterangan Tahun Kabisat vs Biasa di Bagian Bawah */}
+          <footer className="mt-6 pt-4 border-t border-slate-800 text-xs text-slate-400 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-4 text-[11px]">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-md bg-indigo-600" />
+                <span>Hari Ini</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-md bg-rose-500/20 border border-rose-500/40 text-rose-400" />
+                <span className="text-rose-400 font-semibold">Minggu (Libur)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-400" />
+                <span>Ada Agenda</span>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* Footer Dokumentasi & Algoritma */}
-        <footer className="p-5 md:p-6 bg-slate-950 border-t border-slate-800 text-xs text-slate-400 space-y-2">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <p className="flex items-center gap-1.5 font-semibold text-slate-300">
-                <Info className="w-4 h-4 text-indigo-400" />
-                Aturan Tahun Kabisat Kalender Gregorian:
-              </p>
-              <p className="text-slate-400 text-[11px] leading-relaxed">
-                Tahun kabisat (366 hari) berlaku jika tahun habis dibagi 4 (<code className="text-indigo-300">year % 4 === 0</code>) dan tidak habis dibagi 100 (<code className="text-indigo-300">year % 100 !== 0</code>), atau pergantian abad yang habis dibagi 400 (<code className="text-indigo-300">year % 400 === 0</code>).
-              </p>
+            <div className="text-[11px] text-slate-400 text-right">
+              {leap ? (
+                <span className="text-emerald-400 font-semibold">
+                  Tahun Kabisat (366 hari): Habis dibagi 4 / 400.
+                </span>
+              ) : (
+                <span>
+                  Tahun Biasa (365 hari): Februari memiliki 28 hari.
+                </span>
+              )}
             </div>
-            <div className="text-[11px] text-slate-500 md:text-right">
-              Algoritma Sakamoto &bull; Rentang Tahun 1 - 9999 Masehi
-            </div>
-          </div>
-        </footer>
+          </footer>
+        </main>
       </div>
     </div>
   );
